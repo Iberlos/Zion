@@ -469,7 +469,7 @@ MonoBehaviour:
   gizmoViewDistance: 10
   gizmoMaxArrowSize: 1
   gizmoMinArrowSize: 0.5
-  radialCells: 64
+  radialCells: 65
   heightCells: 32
   angularCells: 64
   domeRadius: 1000

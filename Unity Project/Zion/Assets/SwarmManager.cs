@@ -184,9 +184,12 @@ struct Vec3
     }
 }
 
-[DisallowMultipleComponent]
+[DisallowMultipleComponent, ExecuteAlways]
 public class SwarmManager : MonoBehaviour
 {
+    //Singleton
+    public static SwarmManager Instance { get; private set; }
+
     //Visualization
     [SerializeField] public FieldGizmoMode gizmoMode = FieldGizmoMode.None;
     [SerializeField, Range(0.1f, 1.0f)] private float arrowSize = 0.2f;
@@ -222,6 +225,7 @@ public class SwarmManager : MonoBehaviour
     [ContextMenu("Regenerate Field")]
     public void RegenerateField()
     {
+        Debug.Log("RegenerateField called");
         FieldConstructionData newFieldConstructionData = new FieldConstructionData(
             radialCells,
             heightCells,
@@ -308,22 +312,17 @@ public class SwarmManager : MonoBehaviour
 
     //Construction
     [DllImport("SwarmSim", CallingConvention = CallingConvention.Cdecl)]
-    /*TODO: ADD*/
+    /*TODO: IMPLEMENT*/
     static extern void GenerateField(FieldConstructionData data);
     [DllImport("SwarmSim")]
-    /*TODO: ADD*/
     static extern FieldConstructionData GetFieldConstructionData();
     [DllImport("SwarmSim")]
-    /*TODO: ADD*/
     static extern int GetHeightCellCount();
     [DllImport("SwarmSim")]
-    /*TODO: ADD*/
     static extern int GetRadialCellCount();
     [DllImport("SwarmSim")]
-    /*TODO: ADD*/
     static extern int GetAngularCellCount();
     [DllImport("SwarmSim")]
-    /*TODO: ADD*/
     static extern IntPtr GetField();
 
     //Noise
@@ -362,6 +361,29 @@ public class SwarmManager : MonoBehaviour
     private GameObject[] droneObjects;
     Drone[] droneData;
 
+    void OnEnable()
+    {
+        Debug.Log("OnEnable Ran. Playing: " + Application.isPlaying);
+        if (Application.isPlaying)
+        {
+
+        }
+        else
+        {
+            //Singleton pattern outside gameplay
+            if (Instance != null && Instance != this && Instance.isActiveAndEnabled)
+            {
+                return;
+            }
+            if (Instance == null || Instance != null && Instance != this && !Instance.isActiveAndEnabled)
+            {
+                Instance = this;
+                //When the script is activated generate the field in the C++ side
+                if (GetField() == IntPtr.Zero) RegenerateField();
+            }
+        }
+    }
+
     void OnValidate()
     {
         SetNoiseOffsetX(noiseOffsetX);
@@ -374,48 +396,48 @@ public class SwarmManager : MonoBehaviour
         SetDroneSpeedLimit(droneSpeedLimit);
     }
 
-    void OnEnable()
-    {
-        //When the script is activated generate the field in the C++ side
-        RegenerateField();
-    }
-
     void Start()
     {
-        InitializeField(64, 32, 64, 2.0f);
+        if (Application.isPlaying)
+        {
+            InitializeField(64, 32, 64, 2.0f);
 
-        InitializeDrones(cpuDroneCount);
+            InitializeDrones(cpuDroneCount);
 
-        int count = GetDroneCount();
+            int count = GetDroneCount();
 
-        droneObjects = new GameObject[count];
-        droneData = new Drone[count];
+            droneObjects = new GameObject[count];
+            droneData = new Drone[count];
 
-        StartCoroutine(SpawnDrones());
+            StartCoroutine(SpawnDrones());
+        }
     }
 
     void Update()
     {
-        UpdateSwarm(Time.deltaTime);
-
-        int count = GetDroneCount();
-
-        IntPtr ptr = GetDroneArray();
-
-        int size = Marshal.SizeOf(typeof(Drone));
-
-        for (int i = 0; i < count; i++)
+        if (Application.isPlaying)
         {
-            if (droneObjects[i] == null) return;
-            IntPtr dronePtr = ptr + i * size;
+            UpdateSwarm(Time.deltaTime);
 
-            droneData[i] =
-                Marshal.PtrToStructure<Drone>(dronePtr);
+            int count = GetDroneCount();
 
-            droneObjects[i].transform.position =
-                droneData[i].position.ToVector3();
+            IntPtr ptr = GetDroneArray();
 
-            droneObjects[i].transform.rotation = Quaternion.FromToRotation(Vector3.forward, droneData[i].velocity.ToVector3().normalized);
+            int size = Marshal.SizeOf(typeof(Drone));
+
+            for (int i = 0; i < count; i++)
+            {
+                if (droneObjects[i] == null) return;
+                IntPtr dronePtr = ptr + i * size;
+
+                droneData[i] =
+                    Marshal.PtrToStructure<Drone>(dronePtr);
+
+                droneObjects[i].transform.position =
+                    droneData[i].position.ToVector3();
+
+                droneObjects[i].transform.rotation = Quaternion.FromToRotation(Vector3.forward, droneData[i].velocity.ToVector3().normalized);
+            }
         }
     }
 
@@ -516,7 +538,7 @@ public class SwarmManager : MonoBehaviour
             droneObjects[i] = obj;
             //droneTransforms[i] = obj.transform;
 
-            Debug.Log("Spawned drone: " + i);
+            //Debug.Log("Spawned drone: " + i);
 
             if(i %100 == 0)
             {

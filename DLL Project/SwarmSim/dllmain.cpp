@@ -18,25 +18,25 @@ struct Vec3
 struct FieldConstructionData
 {
     //Cells
-    const int radialCells;
-    const int heightCells;
-    const int angularCells;
+    const int radialCells = 0;
+    const int heightCells = 0;
+    const int angularCells = 0;
     //Shapes
     //External
-    const float domeRadius;
-    const float cilinderRadius;
-    const float cilinderHeight;
-    const float coneTrunkRadiusTop;
-    const float coneTrunkHeight;
-    const float coneTrunkRadiusBottom;
+    const float domeRadius = 0;
+    const float cilinderRadius = 0;
+    const float cilinderHeight = 0;
+    const float coneTrunkRadiusTop = 0;
+    const float coneTrunkHeight = 0;
+    const float coneTrunkRadiusBottom = 0;
     //Internal
-    const float pilarRadius;
-    const float pilarHeight;
-    const float towerBaseRadius;
-    const float towerTrunkRadius;
-    const float towerTrunkHeight;
-    const float towerTopRadius;
-    const float bridgeWidth;
+    const float pilarRadius = 0;
+    const float pilarHeight = 0;
+    const float towerBaseRadius = 0;
+    const float towerTrunkRadius = 0;
+    const float towerTrunkHeight = 0;
+    const float towerTopRadius = 0;
+    const float bridgeWidth = 0;
 };
 
 struct FieldPoint
@@ -48,7 +48,7 @@ struct FieldPoint
 struct RadialField
 {
     FieldConstructionData constructionData;
-    FieldPoint* fieldPoints;
+    FieldPoint* fieldPoints = nullptr;
 };
 
 struct FlowField
@@ -70,7 +70,8 @@ struct Drone
 };
 
 //Field instantiation variables
-FlowField field;
+RadialField field;
+/*DEPRECATED*/FlowField flowField;
 //Construction
 //Noise
 siv::PerlinNoise perlin{ 12345 }; // seed
@@ -135,12 +136,12 @@ Vec3 CurlNoise(float x, float y, float z, int id)
 
 Vec3 SampleField(float x, float y, float z, int id)
 {
-    x += (field.sizeX - 1) * field.cellSize / 2.0f;
-    z += (field.sizeZ - 1) * field.cellSize / 2.0f;
+    x += (flowField.sizeX - 1) * flowField.cellSize / 2.0f;
+    z += (flowField.sizeZ - 1) * flowField.cellSize / 2.0f;
 
-    float gx = x / field.cellSize;
-    float gy = y / field.cellSize;
-    float gz = z / field.cellSize;
+    float gx = x / flowField.cellSize;
+    float gy = y / flowField.cellSize;
+    float gz = z / flowField.cellSize;
 
     int x0 = (int)floor(gx);
     int y0 = (int)floor(gy);
@@ -150,13 +151,13 @@ Vec3 SampleField(float x, float y, float z, int id)
     int y1 = y0 + 1;
     int z1 = z0 + 1;
 
-    x0 = max(0, min(field.sizeX - 1, x0));
-    y0 = max(0, min(field.sizeY - 1, y0));
-    z0 = max(0, min(field.sizeZ - 1, z0));
+    x0 = max(0, min(flowField.sizeX - 1, x0));
+    y0 = max(0, min(flowField.sizeY - 1, y0));
+    z0 = max(0, min(flowField.sizeZ - 1, z0));
 
-    x1 = max(0, min(field.sizeX - 1, x1));
-    y1 = max(0, min(field.sizeY - 1, y1));
-    z1 = max(0, min(field.sizeZ - 1, z1));
+    x1 = max(0, min(flowField.sizeX - 1, x1));
+    y1 = max(0, min(flowField.sizeY - 1, y1));
+    z1 = max(0, min(flowField.sizeZ - 1, z1));
 
     float tx = gx - floor(gx);
     float ty = gy - floor(gy);
@@ -164,18 +165,18 @@ Vec3 SampleField(float x, float y, float z, int id)
 
     auto index = [&](int x, int y, int z)
         {
-            return x + y * field.sizeX + z * field.sizeX * field.sizeY;
+            return x + y * flowField.sizeX + z * flowField.sizeX * flowField.sizeY;
         };
 
-    Vec3 c000 = field.vectors[index(x0, y0, z0)];
-    Vec3 c100 = field.vectors[index(x1, y0, z0)];
-    Vec3 c010 = field.vectors[index(x0, y1, z0)];
-    Vec3 c110 = field.vectors[index(x1, y1, z0)];
+    Vec3 c000 = flowField.vectors[index(x0, y0, z0)];
+    Vec3 c100 = flowField.vectors[index(x1, y0, z0)];
+    Vec3 c010 = flowField.vectors[index(x0, y1, z0)];
+    Vec3 c110 = flowField.vectors[index(x1, y1, z0)];
 
-    Vec3 c001 = field.vectors[index(x0, y0, z1)];
-    Vec3 c101 = field.vectors[index(x1, y0, z1)];
-    Vec3 c011 = field.vectors[index(x0, y1, z1)];
-    Vec3 c111 = field.vectors[index(x1, y1, z1)];
+    Vec3 c001 = flowField.vectors[index(x0, y0, z1)];
+    Vec3 c101 = flowField.vectors[index(x1, y0, z1)];
+    Vec3 c011 = flowField.vectors[index(x0, y1, z1)];
+    Vec3 c111 = flowField.vectors[index(x1, y1, z1)];
 
     auto lerp = [](Vec3 a, Vec3 b, float t)
         {
@@ -263,16 +264,22 @@ void UpdateDrone(Drone& d, float dt, int id)
 //Field external functions
 extern "C"
 {
+    /*TODO: IMPLEMENT*/
+    __declspec(dllexport) void GenerateField(FieldConstructionData data)
+    {
+    }
+
+    /*TODO: REMOVE*/
     __declspec(dllexport) void InitializeField(int sx, int sy, int sz, float cellSize)
     {
-        field.sizeX = sx;
-        field.sizeY = sy;
-        field.sizeZ = sz;
-        field.cellSize = cellSize;
+        flowField.sizeX = sx;
+        flowField.sizeY = sy;
+        flowField.sizeZ = sz;
+        flowField.cellSize = cellSize;
 
         int total = sx * sy * sz;
 
-        field.vectors = new Vec3[total];
+        flowField.vectors = new Vec3[total];
 
         for (int z = 0; z < sz; z++)
             for (int y = 0; y < sy; y++)
@@ -285,29 +292,29 @@ extern "C"
                     float worldPosZ = (float)z * cellSize - sz * cellSize / 2;
 
                     if (x == 0 || x == sx - 1 || y == 0 || y == sy - 1 || z == 0 || z == sz - 1) {
-                        field.vectors[i].x = -worldPosX;
-                        field.vectors[i].y = -worldPosY;
-                        field.vectors[i].z = -worldPosZ;
+                        flowField.vectors[i].x = -worldPosX;
+                        flowField.vectors[i].y = -worldPosY;
+                        flowField.vectors[i].z = -worldPosZ;
                     }
                     else {
-                        field.vectors[i].x = +worldPosZ;
-                        field.vectors[i].y = -worldPosY;
-                        field.vectors[i].z = -worldPosX;
+                        flowField.vectors[i].x = +worldPosZ;
+                        flowField.vectors[i].y = -worldPosY;
+                        flowField.vectors[i].z = -worldPosX;
                     }
 
-                    float baseIntensity = sqrt(field.vectors[i].x * field.vectors[i].x + field.vectors[i].y * field.vectors[i].y + field.vectors[i].z * field.vectors[i].z);
+                    float baseIntensity = sqrt(flowField.vectors[i].x * flowField.vectors[i].x + flowField.vectors[i].y * flowField.vectors[i].y + flowField.vectors[i].z * flowField.vectors[i].z);
 
                     //Normalize
                     if (baseIntensity > 0.0f) {
-                        field.vectors[i].x /= baseIntensity;
-                        field.vectors[i].y /= baseIntensity;
-                        field.vectors[i].z /= baseIntensity;
+                        flowField.vectors[i].x /= baseIntensity;
+                        flowField.vectors[i].y /= baseIntensity;
+                        flowField.vectors[i].z /= baseIntensity;
                     }
                     else
                     {
-                        field.vectors[i].x = 0.0f;
-                        field.vectors[i].y = 0.0f;
-                        field.vectors[i].z = 1.0f;
+                        flowField.vectors[i].x = 0.0f;
+                        flowField.vectors[i].y = 0.0f;
+                        flowField.vectors[i].z = 1.0f;
                     }
                 }
     }
@@ -351,29 +358,55 @@ extern "C"
         return droneCount;
     }
 
+    __declspec(dllexport)  FieldConstructionData GetFieldConstructionData() 
+    {
+        return field.constructionData;
+    }
+
+    __declspec(dllexport)  int GetHeightCellCount()
+    {
+        return field.constructionData.heightCells;
+    }
+
+    __declspec(dllexport) int GetRadialCellCount()
+    {
+        return field.constructionData.radialCells;
+    }
+
+    __declspec(dllexport) int GetAngularCellCount() 
+    {
+        return field.constructionData.angularCells;
+    }
+
+    __declspec(dllexport) FieldPoint* GetField()
+    {
+        return field.fieldPoints;
+    }
+
+    /*TODO: REMOVE*/
     __declspec(dllexport) Vec3* GetFieldVectors()
     {
-        return field.vectors;
+        return flowField.vectors;
     }
-
+    /*TODO: REMOVE*/
     __declspec(dllexport) int GetFieldSizeX()
     {
-        return field.sizeX;
+        return flowField.sizeX;
     }
-
+    /*TODO: REMOVE*/
     __declspec(dllexport) int GetFieldSizeY()
     {
-        return field.sizeY;
+        return flowField.sizeY;
     }
-
+    /*TODO: REMOVE*/
     __declspec(dllexport) int GetFieldSizeZ()
     {
-        return field.sizeZ;
+        return flowField.sizeZ;
     }
-
+    /*TODO: REMOVE*/
     __declspec(dllexport) float GetFieldCellSize()
     {
-        return field.cellSize;
+        return flowField.cellSize;
     }
 
     //Construction

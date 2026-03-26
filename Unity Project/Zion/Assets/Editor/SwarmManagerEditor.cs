@@ -1,4 +1,6 @@
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 
 
@@ -86,6 +88,7 @@ public class SwarmManagerEditor : Editor
     {
         //Find script
         SwarmManager generator = (SwarmManager)target;
+        if (SwarmManager.Instance != generator) return;
 
         //Update serialized fields
         serializedObject.Update();
