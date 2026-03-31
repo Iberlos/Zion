@@ -244,16 +244,26 @@ public class SwarmManager : MonoBehaviour
             towerTopRadius,
             bridgeWidth
         );
-        if(newFieldConstructionData != GetFieldConstructionData())
+        IntPtr oldDataPtr = GetFieldConstructionData();
+        if(oldDataPtr != IntPtr.Zero)
         {
-            Debug.Log("Field Generation is in progress...");
-            Debug.Log("Field Generation is not implemented yet");
-            GenerateField(newFieldConstructionData);
-            Debug.Log("Field Generation is complete!");
+            FieldConstructionData oldData = Marshal.PtrToStructure<FieldConstructionData>(GetFieldConstructionData());
+            if (newFieldConstructionData != oldData)
+            {
+                Debug.Log("Field regeneration is in progress...");
+                GenerateField(newFieldConstructionData);
+                Debug.Log("Field generation is complete!");
+            }
+            else
+            {
+                Debug.Log("Field generation was not necessary.");
+            }
         }
         else
         {
-            Debug.Log("Field Generation was not necessary.");
+            Debug.Log("First field generation is in progress...");
+            GenerateField(newFieldConstructionData);
+            Debug.Log("Field generation is complete!");
         }
     }
 
@@ -315,7 +325,7 @@ public class SwarmManager : MonoBehaviour
     /*TODO: IMPLEMENT*/
     static extern void GenerateField(FieldConstructionData data);
     [DllImport("SwarmSim")]
-    static extern FieldConstructionData GetFieldConstructionData();
+    static extern IntPtr GetFieldConstructionData();
     [DllImport("SwarmSim")]
     static extern int GetHeightCellCount();
     [DllImport("SwarmSim")]
@@ -443,48 +453,48 @@ public class SwarmManager : MonoBehaviour
 
     void OnDrawGizmos()
     {
-        return;
-        if (gizmoMode != FieldGizmoMode.None)
+        IntPtr dataPtr = GetFieldConstructionData();
+        IntPtr fieldPtr = GetField();
+
+        if (dataPtr != IntPtr.Zero && fieldPtr != IntPtr.Zero && gizmoMode != FieldGizmoMode.None)
         {
             //Get the number of cells for each radial axis
             int hcc = GetHeightCellCount();
             int rcc = GetRadialCellCount();
             int acc = GetAngularCellCount();
-            //Get the array from DLL
-            IntPtr ptr = GetField();
 
             //Draw each vector starting from the top, then circling arround for each radius
             int size = Marshal.SizeOf(typeof(FieldPoint));
-            int hpc = hcc + 2; //Height Point Count
-            int rpc = rcc + 2; //Radius Point Count
-            int apc = acc + 2; //Angle Point Count
-            for (int h = 0; h < hpc + 2; h++)
-                for (int r = 0; r < rpc + 2; r++)
-                    for (int a = 0; a < apc + 2; a++)
+            int hpc = hcc + 1; //Height Point Count
+            int rpc = rcc + 1; //Radius Point Count
+            int apc = acc + 1; //Angle Point Count
+            for (int hi = 0; hi < hpc; hi++)
+                for (int ri = 0; ri < rpc; ri++)
+                    for (int ai = 0; ai < apc; ai++)
                     {
                         //Skip based on mode
                         switch (gizmoMode)
                         {
                             case FieldGizmoMode.Height:
                                 {
-                                    if (h != gizmoHeightLayer) continue;
+                                    if (hi != gizmoHeightLayer) continue;
                                     break;
                                 }
                             case FieldGizmoMode.Radial:
                                 {
-                                    if (r != gizmoRadialLayer) continue;
+                                    if (ri != gizmoRadialLayer) continue;
                                     break;
                                 }
                             case FieldGizmoMode.Angular:
                                 {
-                                    if (a != gizmoAngularLayer) continue;
+                                    if (ai != gizmoAngularLayer) continue;
                                     break;
                                 }
                         }
                         //Find the index
-                        int index = a + r * (apc + 2) + h * (apc + 2) * (rpc + 2);
+                        int index = hi * rpc * apc + ri * apc + ai;
                         //Find the address in the array
-                        IntPtr vecPtr = ptr + index * size;
+                        IntPtr vecPtr = fieldPtr + index * size;
                         //Convert it to a Field Point
                         FieldPoint p = Marshal.PtrToStructure<FieldPoint>(vecPtr);
                         //Variable Grooming

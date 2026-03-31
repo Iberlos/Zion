@@ -4,6 +4,8 @@
 #include <random>
 #include "PerlinNoise.hpp"
 
+const double PI = 3.14159265358979323846;
+
 //General Structures
 struct Vec3
 {
@@ -12,6 +14,17 @@ struct Vec3
     float x;
     float y;
     float z;
+    Vec3 ToRadialVec3() { return Vec3(y, sqrt(x*x+z*z), atan2(x, z)); }
+};
+
+struct RadialVec3
+{
+    RadialVec3() :h(0.0f), r(0.0f), a(0.0f) {}
+    RadialVec3(float h, float r, float a) : h(h), r(r), a(a) {}
+    float h;
+    float r;
+    float a;
+    Vec3 ToVec3() { return Vec3(sin(a)*r, h, cos(a)*r); }
 };
 
 //Field Structures
@@ -37,6 +50,55 @@ struct FieldConstructionData
     const float towerTrunkHeight = 0;
     const float towerTopRadius = 0;
     const float bridgeWidth = 0;
+
+    // Default constructor (all zeros)
+    FieldConstructionData()
+        : radialCells(0), heightCells(0), angularCells(0),
+        domeRadius(0), cilinderRadius(0), cilinderHeight(0),
+        coneTrunkRadiusTop(0), coneTrunkHeight(0), coneTrunkRadiusBottom(0),
+        pilarRadius(0), pilarHeight(0),
+        towerBaseRadius(0), towerTrunkRadius(0), towerTrunkHeight(0), towerTopRadius(0),
+        bridgeWidth(0)
+    {
+    }
+
+    // Parameter constructor
+    FieldConstructionData(
+        int radialCells,
+        int heightCells,
+        int angularCells,
+        float domeRadius,
+        float cilinderRadius,
+        float cilinderHeight,
+        float coneTrunkRadiusTop,
+        float coneTrunkHeight,
+        float coneTrunkRadiusBottom,
+        float pilarRadius,
+        float pilarHeight,
+        float towerBaseRadius,
+        float towerTrunkRadius,
+        float towerTrunkHeight,
+        float towerTopRadius,
+        float bridgeWidth)
+        : radialCells(radialCells), heightCells(heightCells), angularCells(angularCells),
+        domeRadius(domeRadius), cilinderRadius(cilinderRadius), cilinderHeight(cilinderHeight),
+        coneTrunkRadiusTop(coneTrunkRadiusTop), coneTrunkHeight(coneTrunkHeight), coneTrunkRadiusBottom(coneTrunkRadiusBottom),
+        pilarRadius(pilarRadius), pilarHeight(pilarHeight),
+        towerBaseRadius(towerBaseRadius), towerTrunkRadius(towerTrunkRadius), towerTrunkHeight(towerTrunkHeight), towerTopRadius(towerTopRadius),
+        bridgeWidth(bridgeWidth)
+    {
+    }
+
+    // Copy constructor
+    FieldConstructionData(const FieldConstructionData& other)
+        : radialCells(other.radialCells), heightCells(other.heightCells), angularCells(other.angularCells),
+        domeRadius(other.domeRadius), cilinderRadius(other.cilinderRadius), cilinderHeight(other.cilinderHeight),
+        coneTrunkRadiusTop(other.coneTrunkRadiusTop), coneTrunkHeight(other.coneTrunkHeight), coneTrunkRadiusBottom(other.coneTrunkRadiusBottom),
+        pilarRadius(other.pilarRadius), pilarHeight(other.pilarHeight),
+        towerBaseRadius(other.towerBaseRadius), towerTrunkRadius(other.towerTrunkRadius), towerTrunkHeight(other.towerTrunkHeight), towerTopRadius(other.towerTopRadius),
+        bridgeWidth(other.bridgeWidth)
+    {
+    }
 };
 
 struct FieldPoint
@@ -47,7 +109,7 @@ struct FieldPoint
 
 struct RadialField
 {
-    FieldConstructionData constructionData;
+    FieldConstructionData* constructionData = nullptr;
     FieldPoint* fieldPoints = nullptr;
 };
 
@@ -262,11 +324,166 @@ void UpdateDrone(Drone& d, float dt, int id)
 }
 
 //Field external functions
-extern "C"
+extern "C" 
 {
     /*TODO: IMPLEMENT*/
     __declspec(dllexport) void GenerateField(FieldConstructionData data)
     {
+        //Memory alocation
+        FieldConstructionData* oldData = field.constructionData;
+        field.constructionData = new FieldConstructionData(data);
+
+        const int heightVerts = field.constructionData->heightCells + 1;
+        const int radialVerts = field.constructionData->radialCells + 1;
+        const int angularVerts = field.constructionData->angularCells + 1;
+        if (oldData != nullptr)
+        { 
+            if (oldData->heightCells != field.constructionData->heightCells || oldData->radialCells != field.constructionData->radialCells || oldData->angularCells != field.constructionData->angularCells)
+            {
+                if (field.fieldPoints != nullptr)
+                {
+                    delete field.fieldPoints;
+                }
+                int size = heightVerts * radialVerts * angularVerts;
+                field.fieldPoints = new FieldPoint[size];
+            }
+            delete oldData;
+        }
+        else
+        {
+            int size = heightVerts * radialVerts * angularVerts;
+            field.fieldPoints = new FieldPoint[size];
+        }
+
+        //Cell divisions
+        //Height
+        float cellHeightDelta = -(field.constructionData->domeRadius + field.constructionData->cilinderHeight + field.constructionData->coneTrunkHeight) / field.constructionData->heightCells;
+        float* heightValues = new float[heightVerts];
+        for (int i = 0; i < heightVerts; i++)
+        {
+            heightValues[i] = i * cellHeightDelta;
+        }
+        //TODO: Compress height values arround bridge height using function
+
+        //Radius
+        //Height radial sections (Refer to documentation)
+        float bottom = - field.constructionData->domeRadius - field.constructionData->cilinderHeight - field.constructionData->coneTrunkHeight;
+        float coneTrunkTop = bottom + field.constructionData->coneTrunkHeight;
+        float pilarTop = bottom + field.constructionData->pilarHeight;
+        float towerBaseTop = pilarTop + field.constructionData->towerBaseRadius;
+        float towerTrunkTop = towerBaseTop + field.constructionData->towerTrunkHeight;
+        float towerTopCenter = towerTrunkTop + field.constructionData->towerTopRadius;
+        float towerTop = towerTopCenter + field.constructionData->towerTopRadius;
+        
+        const int heightRadialSectionCount = 7;
+        std::pair<float, float> heightRadiusSections[heightRadialSectionCount] = {
+            {0.0f, towerTop},
+            {towerTop, towerTopCenter},
+            {towerTopCenter, towerTrunkTop},
+            {towerTrunkTop, towerBaseTop},
+            {towerBaseTop, pilarTop},
+            {pilarTop, coneTrunkTop},
+            {coneTrunkTop, bottom}
+        };
+        float* radialValuesPerHeightValue = new float[heightVerts * radialVerts];
+        //Helper lambdas
+        auto circularRadiusFromHeight = [](float circRadius, float circCenterX, float circCenterY, float height) {
+            return (height <= circCenterY + circRadius && height >= circCenterY - circRadius) ?
+                sqrt(circRadius * circRadius - (height - circCenterY) * (height - circCenterY)) + circCenterX :
+                height;
+            };
+        auto coneTrunkRadiusFromHeight = [](float baseRadius, float topradius, float baseYPos, float trunkHeight, float height) {
+            if (topradius - baseRadius == 0 || trunkHeight == 0) {
+                return height;
+            }
+            float a = trunkHeight / (topradius - baseRadius);
+            float b = baseYPos - a * baseRadius;
+            return (height - b) / a;
+            };
+        //Section logic
+        for (int hi = 0; hi < heightVerts; hi++)
+        {
+            int si = 0;
+            for (; si <= heightRadialSectionCount; si++) {
+                if (heightValues[hi] <= heightRadiusSections[si].first && heightValues[hi] > heightRadiusSections[si].second) break;
+            }
+            
+            float sectionInnerRadiusForHeight = 0.0f;
+            float sectionRadiusForHeight = 0.0f;
+            switch (si) {
+            case 0: {
+                //S0 radius (Refer to documentation)
+                //***The function is defined only for height values between 0 and -field.constructionData->domeRadius***
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->domeRadius, 0.0f, -field.constructionData->domeRadius, heightValues[hi]);
+                break;
+            }
+            case 1: {
+                //S1 radius (Refer to documentation)
+                //***The inner function is only defined for height values between -375 and -400***
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->towerTopRadius, 0.0f, towerTop - field.constructionData->towerTopRadius, heightValues[hi]);
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->domeRadius, 0.0f, -field.constructionData->domeRadius, heightValues[hi]);
+                break;
+            }
+            case 2: {
+                //S2 radius (Refer to documentation)
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->towerTopRadius, 0.0f, towerTop - field.constructionData->towerTopRadius, heightValues[hi]);
+                sectionInnerRadiusForHeight = max(sectionInnerRadiusForHeight, field.constructionData->towerTrunkRadius);
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->domeRadius, 0.0f, -field.constructionData->domeRadius, heightValues[hi]);
+                break;
+            }
+            case 3: {
+                //S3 radius (Refer to documentation)
+                sectionInnerRadiusForHeight = field.constructionData->towerTrunkRadius;
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->domeRadius, 0.0f, -field.constructionData->domeRadius, heightValues[hi]);
+                break;
+            }
+            case 4: {
+                //S4 radius (Refer to documentation)
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->towerBaseRadius, 0.0f, - field.constructionData->domeRadius, heightValues[hi]);
+                sectionInnerRadiusForHeight = max(sectionInnerRadiusForHeight, field.constructionData->towerTrunkRadius);
+                sectionRadiusForHeight = circularRadiusFromHeight(field.constructionData->domeRadius, 0.0f, -field.constructionData->domeRadius, heightValues[hi]);
+                break;
+            }
+            case 5: {
+                //S5 radius (Refer to documentation)
+                sectionInnerRadiusForHeight = field.constructionData->pilarRadius;
+                sectionRadiusForHeight = field.constructionData->cilinderRadius;
+                break;
+            }
+            default: {
+                //S6 radius (Refer to documentation)
+                sectionInnerRadiusForHeight = field.constructionData->pilarRadius;
+                sectionRadiusForHeight = coneTrunkRadiusFromHeight(field.constructionData->coneTrunkRadiusBottom, field.constructionData->coneTrunkRadiusTop, bottom, field.constructionData->coneTrunkHeight, heightValues[hi]);
+                break;
+            }
+            }
+
+            float cellRadiusDelta = (sectionRadiusForHeight - sectionInnerRadiusForHeight) / field.constructionData->radialCells;
+            for (int ri = 0; ri < radialVerts; ri++)
+            {
+                radialValuesPerHeightValue[hi * radialVerts + ri] = sectionInnerRadiusForHeight + ri * cellRadiusDelta;
+            }
+        }
+        //TODO: Compress radial values arround the min and max values
+
+        //Angular
+        float cellAngularDelta = (2 * PI) / field.constructionData->angularCells;
+        float* angularValues = new float[angularVerts];
+        for (int i = 0; i < angularVerts; i++)
+        {
+            angularValues[i] = i * cellAngularDelta;
+        }
+        //TODO: Compress angular values  arround 0, 90, 180, 270 and 360 degrees using function
+
+        //Point Location and velocity
+        for(int hi = 0; hi < heightVerts; hi++)
+            for(int ri = 0; ri < radialVerts; ri++)
+                for (int ai = 0; ai < angularVerts; ai++)
+                {
+                    int index = hi * radialVerts * angularVerts + ri * angularVerts + ai;
+                    field.fieldPoints[index].position = RadialVec3(heightValues[hi], radialValuesPerHeightValue[hi*radialVerts+ri], angularValues[ai]).ToVec3();
+                    field.fieldPoints[index].direction = Vec3(1.0f, 0.0f, 0.0f);
+                }
     }
 
     /*TODO: REMOVE*/
@@ -358,24 +575,24 @@ extern "C"
         return droneCount;
     }
 
-    __declspec(dllexport)  FieldConstructionData GetFieldConstructionData() 
+    __declspec(dllexport)  FieldConstructionData* GetFieldConstructionData() 
     {
         return field.constructionData;
     }
 
     __declspec(dllexport)  int GetHeightCellCount()
     {
-        return field.constructionData.heightCells;
+        return field.constructionData->heightCells;
     }
 
     __declspec(dllexport) int GetRadialCellCount()
     {
-        return field.constructionData.radialCells;
+        return field.constructionData->radialCells;
     }
 
     __declspec(dllexport) int GetAngularCellCount() 
     {
-        return field.constructionData.angularCells;
+        return field.constructionData->angularCells;
     }
 
     __declspec(dllexport) FieldPoint* GetField()
