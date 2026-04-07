@@ -9,6 +9,7 @@ public enum FieldGizmoMode
     Height,
     Radial,
     Angular,
+    Shell,
     Near
 }
 
@@ -468,6 +469,7 @@ public class SwarmManager : MonoBehaviour
             int hpc = hcc + 1; //Height Point Count
             int rpc = rcc + 1; //Radius Point Count
             int apc = acc + 1; //Angle Point Count
+            bool printDirLog = true;
             for (int hi = 0; hi < hpc; hi++)
                 for (int ri = 0; ri < rpc; ri++)
                     for (int ai = 0; ai < apc; ai++)
@@ -489,6 +491,11 @@ public class SwarmManager : MonoBehaviour
                                 {
                                     if (ai != gizmoAngularLayer) continue;
                                     break;
+                                }
+                            case FieldGizmoMode.Shell:
+                                {
+                                    if (ri != 0 && ri != rcc && hi != hcc) continue;
+                                        break;
                                 }
                         }
                         //Find the index

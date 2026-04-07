@@ -463,7 +463,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SwarmManager
   gizmoMode: 4
   arrowSize: 0.2
-  gizmoHeightLayer: 0
+  gizmoHeightLayer: 1
   gizmoRadialLayer: 64
   gizmoAngularLayer: 0
   gizmoViewDistance: 100

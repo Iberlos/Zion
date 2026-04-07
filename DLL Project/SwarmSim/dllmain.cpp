@@ -11,6 +11,7 @@ struct Vec3
 {
     Vec3():x(0.0f),y(0.0f),z(0.0f){}
     Vec3(float x, float y, float z): x(x), y(y), z(z) {}
+    Vec3(const Vec3& other) : x(other.x), y(other.y), z(other.z) {}
     float x;
     float y;
     float z;
@@ -21,10 +22,32 @@ struct RadialVec3
 {
     RadialVec3() :h(0.0f), r(0.0f), a(0.0f) {}
     RadialVec3(float h, float r, float a) : h(h), r(r), a(a) {}
+    RadialVec3(const RadialVec3& other) : h(other.h), r(other.r), a(other.a) {}
     float h;
     float r;
     float a;
     Vec3 ToVec3() { return Vec3(sin(a)*r, h, cos(a)*r); }
+
+    //Add an angle to the original vector
+    RadialVec3& AddAngle(float a) {
+        (*this).a += a;
+        return *this;
+    }
+    //Turns the original vector 90 degrees clockwise
+    RadialVec3& TurnRight() { return AddAngle(-PI / 2); }
+    //Turns the original vector 90 degrees counter-clockwise
+    RadialVec3& TurnLeft() { return AddAngle(PI / 2); }
+    //Gets a new vector that is turned 90 degrees clockwise
+    RadialVec3 RightTurn() { return RadialVec3(*this).TurnRight(); }
+    //Gets a new vector that is turned 90 degrees counter-clockwise
+    RadialVec3 LeftTurn() { return RadialVec3(*this).TurnLeft(); }
+    //Gets a new vector containing only the variable needed
+    RadialVec3 H() { return RadialVec3((*this).h, 1.0f, 0.0f); }
+    RadialVec3 R() { return RadialVec3(0.0f, (*this).r, 0.0f); }
+    RadialVec3 A() { return RadialVec3(0.0f, 1.0f, (*this).a); }
+    //Gets a new vector pointing in the direction required based on the original vector
+    RadialVec3 RadialIn() { return RadialVec3(0.0f, 1.0f, (*this).a); }
+    RadialVec3 RadialOut() { return RadialVec3(0.0f, -1.0f, (*this).a); }
 };
 
 //Field Structures
@@ -481,8 +504,28 @@ extern "C"
                 for (int ai = 0; ai < angularVerts; ai++)
                 {
                     int index = hi * radialVerts * angularVerts + ri * angularVerts + ai;
-                    field.fieldPoints[index].position = RadialVec3(heightValues[hi], radialValuesPerHeightValue[hi*radialVerts+ri], angularValues[ai]).ToVec3();
-                    field.fieldPoints[index].direction = Vec3(1.0f, 0.0f, 0.0f);
+                    RadialVec3 radialPos = RadialVec3(heightValues[hi], radialValuesPerHeightValue[hi * radialVerts + ri], angularValues[ai]);
+                    field.fieldPoints[index].position = radialPos.ToVec3();
+                    
+                    Vec3 dir;
+                    if(ri != 0 && ri != radialVerts-1 && hi != 0 && hi != heightVerts -1)
+                        dir = radialPos.RightTurn().A().ToVec3();
+                    else {
+                    
+                        if (hi == 0) { //If on the top, point down
+                            dir = Vec3(0.0f, -1.0f, 0.0f);
+                        }
+                        else if (hi == heightVerts - 1) { //If on the bottom point up
+                            dir = Vec3(0.0f, 1.0f, 0.0f);
+                        }
+                        else if (ri == 0) { //If on internal radial limit point out
+                            dir = radialPos.RadialIn().ToVec3();
+                        }
+                        else if (ri == radialVerts - 1) { //If on external radial limit point out
+                            dir = radialPos.RadialOut().ToVec3();
+                        }
+                    }
+                    field.fieldPoints[index].direction = dir;
                 }
     }
 
