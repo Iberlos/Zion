@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <cassert>
 #include <stdio.h>
 #include <math.h>
 #include <random>
@@ -15,7 +16,7 @@ struct Vec3
     float x;
     float y;
     float z;
-    Vec3 ToRadialVec3() { return Vec3(y, sqrt(x*x+z*z), atan2(x, z)); }
+    //RadialVec3 ToRadialVec3() { return RadialVec3(y, sqrt(x*x+z*z), atan2(x, z)); }
 };
 
 struct RadialVec3
@@ -23,6 +24,7 @@ struct RadialVec3
     RadialVec3() :h(0.0f), r(0.0f), a(0.0f) {}
     RadialVec3(float h, float r, float a) : h(h), r(r), a(a) {}
     RadialVec3(const RadialVec3& other) : h(other.h), r(other.r), a(other.a) {}
+    RadialVec3(const Vec3& vec3) : h(vec3.y), r(sqrt(vec3.x* vec3.x + vec3.z * vec3.z)), a(atan2(vec3.x, vec3.z)) {}
     float h;
     float r;
     float a;
@@ -34,9 +36,9 @@ struct RadialVec3
         return *this;
     }
     //Turns the original vector 90 degrees clockwise
-    RadialVec3& TurnRight() { return AddAngle(-PI / 2); }
+    RadialVec3& TurnRight() { return AddAngle((float)(-PI / 2)); }
     //Turns the original vector 90 degrees counter-clockwise
-    RadialVec3& TurnLeft() { return AddAngle(PI / 2); }
+    RadialVec3& TurnLeft() { return AddAngle((float)(PI / 2)); }
     //Gets a new vector that is turned 90 degrees clockwise
     RadialVec3 RightTurn() { return RadialVec3(*this).TurnRight(); }
     //Gets a new vector that is turned 90 degrees counter-clockwise
@@ -130,6 +132,86 @@ struct FieldPoint
     Vec3 direction;
 };
 
+struct FieldPlane
+{
+    FieldPlane(
+        FieldPoint& pMin, 
+        FieldPoint& pFirst, 
+        FieldPoint& pSecond, 
+        FieldPoint& pMax
+    ): pMin(pMin), 
+       pFirst(pFirst), 
+       pSecond(pSecond), 
+       pMax(pMax)
+    {}
+    /*
+    **READ**
+    This struct holds references to FieldPoints that create a quad.
+    This quad can be oriented in any cardinal direction in the radial field (or a cardinal field if one is implemented),
+    so in order to keep naming generec the following convention was created:
+    pSecond ___ pMax
+            |\|
+       pMin --- pFirst
+
+    pMin -> holds the point withe the smallest position values. On a 2d plane that would be the smallest x && y. For example (0,0)
+    pFirst -> holds the first point used to create a tri in a conventional quad. On a 2d plane that would be the smallest y and second smallest x. For example (1,0)
+    pSecond -> holds the second point used to create a tri in a conventional quad. On a 2d plane that would be the smallest x and second smallest y. For example (0,1)
+    pMax -> holds the point with the highest position values. On a 2d plane that would be the largest x && y. for example (1,1)
+
+    OBS: The creation of the default cell planes in the FieldCell struct may be a good way to understand this struct in 2.5D Radial coordinates. 
+    */
+    FieldPoint& pMin;
+    FieldPoint& pFirst;
+    FieldPoint& pSecond;
+    FieldPoint& pMax;
+};
+
+struct FieldCell
+{
+    FieldCell(
+        FieldPoint& p000,
+        FieldPoint& p100, 
+        FieldPoint& p010,
+        FieldPoint& p110,
+        FieldPoint& p001,
+        FieldPoint& p101,
+        FieldPoint& p011,
+        FieldPoint& p111
+    ) : p000(p000),
+        p100(p100),
+        p010(p010),
+        p110(p110),
+        p001(p001),
+        p101(p101),
+        p011(p011),
+        p111(p111)
+    {}
+
+    //Counter Clockwise plane
+    FieldPoint& p000;
+    FieldPoint& p100;
+    FieldPoint& p010;
+    FieldPoint& p110;
+    //Clockwise Plane
+    FieldPoint& p001;
+    FieldPoint& p101;
+    FieldPoint& p011;
+    FieldPoint& p111;
+
+    //Default planes (Naming convention seen in radial direction
+    FieldPlane FrontPlane() { return FieldPlane(p000,p001,p100,p101); }
+    FieldPlane BackPlane() { return FieldPlane(p010, p011, p110, p111); }
+    FieldPlane TopPlane() { return FieldPlane(p100, p101, p110, p111); }
+    FieldPlane BottomPlane() { return FieldPlane(p000, p001, p010, p011); }
+    FieldPlane RightPlane() { return FieldPlane(p000, p010, p100, p110); }
+    FieldPlane LeftPlane() { return FieldPlane(p001, p011, p101, p111); }
+    //Diagonals (Probably not used)
+    FieldPlane DiagonalAPos() { return FieldPlane(p000, p010, p101, p111); }
+    FieldPlane DiagonalANeg() { return FieldPlane(p001, p011, p100, p110); }
+    FieldPlane DiagonalRPos() { return FieldPlane(p000, p001, p110, p111); }
+    FieldPlane DiagonalRNeg() { return FieldPlane(p010, p011, p100, p101); }
+};
+
 struct RadialField
 {
     FieldConstructionData* constructionData = nullptr;
@@ -137,6 +219,58 @@ struct RadialField
     float* radialValuesPerHeightValue = nullptr;
     float* angularValues = nullptr;
     FieldPoint* fieldPoints = nullptr;
+
+    FieldCell FindCellFromVec3(Vec3 position)
+    {
+        //Turn cardinal position into 2.5d position
+        RadialVec3 rp(position);
+        //Find coordinates for each radial axis for position
+        int heightPointCount = constructionData->heightCells + 1;
+        int radialPointCount = constructionData->radialCells + 1;
+        int angularPointCount = constructionData->angularCells + 1;
+
+        int hiPrevious = 0;
+        int hiNext = heightPointCount;
+        BinaryIndexSearch(rp.h, heightValues, heightPointCount, hiPrevious, hiNext);
+        int riPrevious = 0;
+        int riNext = radialPointCount;
+        BinaryIndexSearch(rp.r, radialValuesPerHeightValue, radialPointCount * heightPointCount, riPrevious, riNext, hiPrevious); //TODO: use closest hi value not previous
+        int aiPrevious = 0;
+        int aiNext = angularPointCount;
+        BinaryIndexSearch(rp.a, angularValues, angularPointCount, aiPrevious, aiNext);
+        //Create FieldCell
+        return FieldCell(
+            /*p000*/fieldPoints[hiPrevious * radialPointCount * angularPointCount + riPrevious * angularPointCount + aiPrevious],
+            /*p100*/fieldPoints[hiNext * radialPointCount * angularPointCount + riPrevious * angularPointCount + aiPrevious],
+            /*p010*/fieldPoints[hiPrevious * radialPointCount * angularPointCount + riNext * angularPointCount + aiPrevious],
+            /*p110*/fieldPoints[hiNext * radialPointCount * angularPointCount + riNext * angularPointCount + aiPrevious],
+            /*p001*/fieldPoints[hiPrevious * radialPointCount * angularPointCount + riPrevious * angularPointCount + aiNext],
+            /*p101*/fieldPoints[hiNext * radialPointCount * angularPointCount + riPrevious * angularPointCount + aiNext],
+            /*p011*/fieldPoints[hiPrevious * radialPointCount * angularPointCount + riNext * angularPointCount + aiNext],
+            /*p111*/fieldPoints[hiNext * radialPointCount * angularPointCount + riNext * angularPointCount + aiNext]
+        );
+    }
+
+    //Helper function to find the indexes for each axis right below and right above the value
+    void BinaryIndexSearch(float searchValue, float* values, int valuesSize, int& iPreviousOut, int& iNextOut,  int baseIndex = 0) {
+        int searchIndex = (int)floor(valuesSize / 2.0f);
+        while (iPreviousOut < iNextOut - 1) {
+            assert(searchIndex < valuesSize && searchIndex > 0 && "searchIndex out of bounds!");
+            float currentValue = values[searchIndex];
+            if (currentValue > searchValue) {
+                iPreviousOut = searchIndex;
+            }
+            else if(currentValue < searchValue){
+                iNextOut = searchIndex;
+            }
+            else {
+                //Handle sameness although it should not be possible
+                iPreviousOut = searchIndex;
+                iNextOut = searchIndex + 1;
+            }
+            searchIndex = iPreviousOut + (int)floor((iNextOut-iPreviousOut) / 2.0f);
+        }
+    }
 };
 
 struct FlowField
@@ -224,6 +358,7 @@ Vec3 CurlNoise(float x, float y, float z, int id)
 
 Vec3 SampleField(Vec3 dp, int id)
 {
+
     dp.x += (flowField.sizeX - 1) * flowField.cellSize / 2.0f;
     dp.z += (flowField.sizeZ - 1) * flowField.cellSize / 2.0f;
 
@@ -495,7 +630,7 @@ extern "C"
         //TODO: Compress radial values arround the min and max values
 
         //Angular
-        float cellAngularDelta = (2 * PI) / field.constructionData->angularCells;
+        float cellAngularDelta = (float)((2 * PI) / field.constructionData->angularCells);
         if (field.angularValues != nullptr) delete[] field.angularValues;
         field.angularValues = new float[angularVerts];
         float* angularValues = field.angularValues;
