@@ -133,6 +133,9 @@ struct FieldPoint
 struct RadialField
 {
     FieldConstructionData* constructionData = nullptr;
+    float* heightValues = nullptr;
+    float* radialValuesPerHeightValue = nullptr;
+    float* angularValues = nullptr;
     FieldPoint* fieldPoints = nullptr;
 };
 
@@ -219,14 +222,14 @@ Vec3 CurlNoise(float x, float y, float z, int id)
     return curl;
 }
 
-Vec3 SampleField(float x, float y, float z, int id)
+Vec3 SampleField(Vec3 dp, int id)
 {
-    x += (flowField.sizeX - 1) * flowField.cellSize / 2.0f;
-    z += (flowField.sizeZ - 1) * flowField.cellSize / 2.0f;
+    dp.x += (flowField.sizeX - 1) * flowField.cellSize / 2.0f;
+    dp.z += (flowField.sizeZ - 1) * flowField.cellSize / 2.0f;
 
-    float gx = x / flowField.cellSize;
-    float gy = y / flowField.cellSize;
-    float gz = z / flowField.cellSize;
+    float gx = dp.x / flowField.cellSize;
+    float gy = dp.y / flowField.cellSize;
+    float gz = dp.z / flowField.cellSize;
 
     int x0 = (int)floor(gx);
     int y0 = (int)floor(gy);
@@ -282,7 +285,7 @@ Vec3 SampleField(float x, float y, float z, int id)
 
     Vec3 base = lerp(c0, c1, tz);
 
-    Vec3 curl = CurlNoise(x * 0.01f, y * 0.01f, z * 0.01f, id);
+    Vec3 curl = CurlNoise(dp.x * 0.01f, dp.y * 0.01f, dp.z * 0.01f, id);
 
     float curlLen = sqrt(curl.x * curl.x + curl.y * curl.y + curl.z * curl.z);
 
@@ -313,9 +316,7 @@ Vec3 SampleField(float x, float y, float z, int id)
 void UpdateDrone(Drone& d, float dt, int id)
 {
     Vec3 flow = SampleField(
-        d.position.x,
-        d.position.y,
-        d.position.z,
+        d.position,
         id
     );
 
@@ -381,7 +382,9 @@ extern "C"
         //Cell divisions
         //Height
         float cellHeightDelta = -(field.constructionData->domeRadius + field.constructionData->cilinderHeight + field.constructionData->coneTrunkHeight) / field.constructionData->heightCells;
-        float* heightValues = new float[heightVerts];
+        if (field.heightValues != nullptr) delete[] field.heightValues;
+        field.heightValues = new float[heightVerts];
+        float* heightValues = field.heightValues;
         for (int i = 0; i < heightVerts; i++)
         {
             heightValues[i] = i * cellHeightDelta;
@@ -408,7 +411,9 @@ extern "C"
             {pilarTop, coneTrunkTop},
             {coneTrunkTop, bottom}
         };
-        float* radialValuesPerHeightValue = new float[heightVerts * radialVerts];
+        if (field.radialValuesPerHeightValue != nullptr) delete[] field.radialValuesPerHeightValue;
+        field.radialValuesPerHeightValue = new float[heightVerts * radialVerts];
+        float* radialValuesPerHeightValue = field.radialValuesPerHeightValue;
         //Helper lambdas
         auto circularRadiusFromHeight = [](float circRadius, float circCenterX, float circCenterY, float height) {
             return (height <= circCenterY + circRadius && height >= circCenterY - circRadius) ?
@@ -491,7 +496,9 @@ extern "C"
 
         //Angular
         float cellAngularDelta = (2 * PI) / field.constructionData->angularCells;
-        float* angularValues = new float[angularVerts];
+        if (field.angularValues != nullptr) delete[] field.angularValues;
+        field.angularValues = new float[angularVerts];
+        float* angularValues = field.angularValues;
         for (int i = 0; i < angularVerts; i++)
         {
             angularValues[i] = i * cellAngularDelta;

@@ -461,10 +461,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3c5faf237a545144be11345ce0aded5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwarmManager
-  gizmoMode: 4
+  gizmoMode: 5
   arrowSize: 0.2
   gizmoHeightLayer: 1
-  gizmoRadialLayer: 64
+  gizmoRadialLayer: 51
   gizmoAngularLayer: 0
   gizmoViewDistance: 100
   gizmoMaxArrowSize: 1
