@@ -485,7 +485,7 @@ MonoBehaviour:
   towerTrunkHeight: 32.5
   towerTopRadius: 25
   bridgeWidth: 25
-  cpuDroneCount: 2000
+  cpuDroneCount: 1
   dronePrefab: {fileID: 5693248307720468095, guid: 3b07c816ab634644e90528029c7ab9dc, type: 3}
   droneSpeedLimit: 20
   fieldInfluenceStength: 25

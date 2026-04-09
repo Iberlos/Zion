@@ -1,6 +1,7 @@
 #include "pch.h"
 #include <cassert>
 #include <stdio.h>
+#include <string>
 #include <math.h>
 #include <random>
 #include "PerlinNoise.hpp"
@@ -16,28 +17,38 @@ struct Vec3
     float x;
     float y;
     float z;
+
+    std::string ToString() { return std::string(std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z)); }
 };
 
 struct RadialVec3
 {
-    RadialVec3() :h(0.0f), r(0.0f), a(0.0f) {}
-    RadialVec3(float h, float r, float a) : h(h), r(r), a(a) {}
-    RadialVec3(const RadialVec3& other) : h(other.h), r(other.r), a(other.a) {}
-    RadialVec3(const Vec3& vec3) : h(vec3.y), r(sqrt(vec3.x* vec3.x + vec3.z * vec3.z)), a(atan2(vec3.x, vec3.z)) {}
+    RadialVec3() :h(0.0f), r(0.0f), a(0.0f) { AlignA(); }
+    RadialVec3(float h, float r, float a) : h(h), r(r), a(a) { AlignA(); }
+    RadialVec3(const RadialVec3& other) : h(other.h), r(other.r), a(other.a) { AlignA(); }
+    RadialVec3(const Vec3& vec3) : h(vec3.y), r(sqrt(vec3.x* vec3.x + vec3.z * vec3.z)), a(atan2(vec3.x, vec3.z)) { AlignA(); }
     float h;
     float r;
     float a;
     Vec3 ToVec3() { return Vec3(sin(a)*r, h, cos(a)*r); }
+    std::string ToString() { return std::string(std::to_string(h) + "," + std::to_string(r) + "," + std::to_string(a)); }
 
     //Add an angle to the original vector
+    RadialVec3& AlignA() {
+        float& a = (*this).a;
+        a = std::fmod(a, 2 * PI);
+        if (a < 0.0f)
+            a += 2 * PI;
+        return *this;
+    }
     RadialVec3& AddAngle(float a) {
         (*this).a += a;
         return *this;
     }
     //Turns the original vector 90 degrees clockwise
-    RadialVec3& TurnRight() { return AddAngle((float)(-PI / 2)); }
+    RadialVec3& TurnRight() { return AddAngle((float)(-PI / 2)).AlignA(); }
     //Turns the original vector 90 degrees counter-clockwise
-    RadialVec3& TurnLeft() { return AddAngle((float)(PI / 2)); }
+    RadialVec3& TurnLeft() { return AddAngle((float)(PI / 2)).AlignA(); }
     //Gets a new vector that is turned 90 degrees clockwise
     RadialVec3 RightTurn() { return RadialVec3(*this).TurnRight(); }
     //Gets a new vector that is turned 90 degrees counter-clockwise
@@ -123,12 +134,47 @@ struct FieldConstructionData
         bridgeWidth(other.bridgeWidth)
     {
     }
+
+    void PrintLog(std::string* addTo = nullptr) {
+        std::string logMessage = std::string(
+            addTo == nullptr ? "SwarmSim - ConstructionData Log:\n\n" : "\n\nConstructionData Log:\n"
+            "radialCells = " + std::to_string(radialCells) + "\n"
+            "heightCells = " + std::to_string(heightCells) + "\n"
+            "angularCells = " + std::to_string(angularCells) + "\n"
+            "domeRadius = " + std::to_string(domeRadius) + "\n"
+            "cilinderRadius = " + std::to_string(cilinderRadius) + "\n"
+            "cilinderHeight = " + std::to_string(cilinderHeight) + "\n"
+            "coneTrunkRadiusTop = " + std::to_string(coneTrunkRadiusTop) + "\n"
+            "coneTrunkHeight = " + std::to_string(coneTrunkHeight) + "\n"
+            "coneTrunkRadiusBottom = " + std::to_string(coneTrunkRadiusBottom) + "\n"
+            "pilarRadius = " + std::to_string(pilarRadius) + "\n"
+            "pilarHeight = " + std::to_string(pilarHeight) + "\n"
+            "towerBaseRadius = " + std::to_string(towerBaseRadius) + "\n"
+            "towerTrunkRadius = " + std::to_string(towerTrunkRadius) + "\n"
+            "towerTrunkHeight = " + std::to_string(towerTrunkHeight) + "\n"
+            "towerTopRadius = " + std::to_string(towerTopRadius) + "\n"
+            "bridgeWidth = " + std::to_string(bridgeWidth) + "\n"
+        );
+
+        if (addTo != nullptr)
+        {
+            *addTo += logMessage;
+        }
+        else
+        {
+            printf(logMessage.c_str());
+        }
+    }
 };
 
 struct FieldPoint
 {
     Vec3 position;
     Vec3 direction;
+
+    std::string ToString(int printPosOrDir = 0) { 
+        return std::string((printPosOrDir>=0?("P:" + position.ToString()):"") + (printPosOrDir<=0?(" D:" + direction.ToString()):""));
+    }
 };
 
 struct FieldPlane
@@ -209,6 +255,32 @@ struct FieldCell
     FieldPlane DiagonalANeg() { return FieldPlane(p001, p011, p100, p110); }
     FieldPlane DiagonalRPos() { return FieldPlane(p000, p001, p110, p111); }
     FieldPlane DiagonalRNeg() { return FieldPlane(p010, p011, p100, p101); }
+    //Axis limits
+    float Top() { return p111.position.y; }
+    float Bottom() { return p000.position.y; }
+
+    void PrintLog(int printTopOrBottom = 0, int printPosOrDir = 0, std::string* addTo = nullptr) {
+        std::string logMessage = "";
+        //Print top
+        if(printTopOrBottom >= 0)logMessage += std::string(
+            "    " + p111.ToString(printPosOrDir) + "    " + p110.ToString(printPosOrDir) + "\n"
+            "" + p101.ToString(printPosOrDir) + "    " + p100.ToString(printPosOrDir) + "\n"
+        );
+        //Print bottom
+        if (printTopOrBottom <= 0)logMessage += std::string(
+            "    " + p011.ToString(printPosOrDir) + "    " + p010.ToString(printPosOrDir) + "\n"
+            "" + p001.ToString(printPosOrDir) + "    " + p000.ToString(printPosOrDir) + "\n"
+        );
+
+        if (addTo != nullptr)
+        {
+            *addTo += logMessage;
+        }
+        else
+        {
+            printf(logMessage.c_str());
+        }
+    }
 };
 
 struct RadialField
@@ -223,20 +295,26 @@ struct RadialField
     {
         //Turn cardinal position into 2.5d position
         RadialVec3 rp(position);
+        printf("Cardinal postion converted to radial position %f, %f, %f.\n", rp.h, rp.r, rp.a);
         //Find coordinates for each radial axis for position
         int heightPointCount = constructionData->heightCells + 1;
         int radialPointCount = constructionData->radialCells + 1;
         int angularPointCount = constructionData->angularCells + 1;
 
+
         int hiPrevious = 0;
-        int hiNext = heightPointCount;
+        int hiNext = heightPointCount-1;
+        printf("\nBinary Height Search starting with P=%d,N=%d,S=%f", hiPrevious, hiNext, rp.h);
         BinaryIndexSearch(rp.h, heightValues, heightPointCount, hiPrevious, hiNext);
         int riPrevious = 0;
-        int riNext = radialPointCount;
+        int riNext = radialPointCount-1;
+        printf("\nBinary Radial Search starting with P=%d,N=%d,S=%f,Bi=%d", riPrevious, riNext, rp.r, hiPrevious);
         BinaryIndexSearch(rp.r, radialValuesPerHeightValue, radialPointCount * heightPointCount, riPrevious, riNext, hiPrevious); //TODO: use closest hi value not previous
         int aiPrevious = 0;
-        int aiNext = angularPointCount;
+        int aiNext = angularPointCount-1;
+        printf("\nBinary Angular Search starting with P=%d,N=%d,S=%f", aiPrevious, aiNext, rp.a);
         BinaryIndexSearch(rp.a, angularValues, angularPointCount, aiPrevious, aiNext);
+        printf("\nBinary search returned indexes:\nH: %d, %d\nR: %d, %d\nA: %d, %d\n", hiPrevious, hiNext, riPrevious, riNext, aiPrevious, aiNext);
         //Create FieldCell
         int maxIndex = hiNext * radialPointCount * angularPointCount + riNext * angularPointCount + aiNext;
         assert(maxIndex < heightPointCount * radialPointCount * angularPointCount && "maxIndex out of bounds!");
@@ -254,22 +332,144 @@ struct RadialField
 
     //Helper function to find the indexes for each axis right below and right above the value
     void BinaryIndexSearch(float searchValue, float* values, int valuesSize, int& iPreviousOut, int& iNextOut,  int baseIndex = 0) {
-        int searchIndex = (int)floor(valuesSize / 2.0f);
+        //If there is a base index align with it
+        if (baseIndex != 0)
+        {
+            iPreviousOut += baseIndex;
+            iNextOut += baseIndex;
+            printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+        }
+        //Check if the array is in descending order or ascending order
+        bool AscendingLogic = values[0] < values[1];
+        //If the search value is smaller than the minimum value force iNextOut and exit
+        if (AscendingLogic ? searchValue < values[iPreviousOut] : searchValue > values[iPreviousOut])
+        {
+            iNextOut = iPreviousOut + 1;
+            printf("\nS=%f %s V[P]=%f ->  P=%d,N=%d", searchValue, AscendingLogic?"<":">", values[iPreviousOut], iPreviousOut, iNextOut);
+            //If the logic was flipped the indexes need to be flipped, since values[iNextOut] > values[iPreviousOut] has to be true for cell creation
+            if (!AscendingLogic) {
+                int n = iNextOut;
+                int p = iPreviousOut;
+                iPreviousOut = n;
+                iNextOut = p;
+                printf("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
+            }
+            //If there is a base index de-align with it before returning
+            if (baseIndex != 0)
+            {
+                iPreviousOut -= baseIndex;
+                iNextOut -= baseIndex;
+                printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+            }
+            return;
+        }
+        //If the search value is bigger than the maximum value force iPreviousOut and exit
+        if (AscendingLogic ? searchValue > values[iNextOut] : searchValue < values[iNextOut])
+        {
+            iPreviousOut = iNextOut - 1;
+            printf("\nS=%f %s V[N]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? ">" : "<", values[iNextOut], iPreviousOut, iNextOut);
+            //If the logic was flipped the indexes need to be flipped, since values[iNextOut] > values[iPreviousOut] has to be true for cell creation
+            if (!AscendingLogic) {
+                int n = iNextOut;
+                int p = iPreviousOut;
+                iPreviousOut = n;
+                iNextOut = p;
+                printf("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
+            }
+            //If there is a base index de-align with it before returning
+            if (baseIndex != 0)
+            {
+                iPreviousOut -= baseIndex;
+                iNextOut -= baseIndex;
+                printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+            }
+            return;
+        }
+        //Binary search
+        int step = 0;
+        int searchIndex;
         while (iPreviousOut < iNextOut - 1) {
+            step++;
+            printf("\nStep %d", step);
+            searchIndex = iPreviousOut + (int)floor((iNextOut - iPreviousOut) / 2.0f);
             assert(searchIndex < valuesSize && searchIndex >= 0 && "searchIndex out of bounds!");
             float currentValue = values[searchIndex];
-            if (currentValue > searchValue) {
-                iPreviousOut = searchIndex;
-            }
-            else if(currentValue < searchValue){
+            if (AscendingLogic ? searchValue < currentValue : searchValue > currentValue) {
                 iNextOut = searchIndex;
+                printf("\nS=%f %s V[S=%d]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? "<" : ">", searchIndex, values[searchIndex], iPreviousOut, iNextOut);
+            }
+            else if(AscendingLogic ? searchValue > currentValue : searchValue < currentValue){
+                iPreviousOut = searchIndex;
+                printf("\nS=%f %s V[S=%d]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? ">" : "<", searchIndex, values[searchIndex], iPreviousOut, iNextOut);
             }
             else {
                 //Handle sameness although it should not be possible
                 iPreviousOut = searchIndex;
                 iNextOut = searchIndex + 1;
+                printf("\nS=%f = V[S=%d]=%f ->  P=%d,N=%d", searchValue, searchIndex, values[searchIndex], iPreviousOut, iNextOut);
             }
             searchIndex = iPreviousOut + (int)floor((iNextOut-iPreviousOut) / 2.0f);
+        }
+        //If the logic was flipped the indexes need to be flipped, since values[iNextOut] > values[iPreviousOut] has to be true for cell creation
+        if (!AscendingLogic) {
+            int n = iNextOut;
+            int p = iPreviousOut;
+            iPreviousOut = n;
+            iNextOut = p;
+            printf("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
+        }
+        //If there is a base index de-align with it before returning
+        if (baseIndex != 0)
+        {
+            iPreviousOut -= baseIndex;
+            iNextOut -= baseIndex;
+            printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+        }
+    }
+
+    void PrintLog(std::string* addTo = nullptr) {
+        std::string logMessage = std::string(addTo == nullptr ? "SwarmSim Log:\n\n" : "");
+        constructionData->PrintLog(&logMessage);
+
+        int heightValueCount = constructionData->heightCells + 1;
+        int radialValueCount = constructionData->radialCells + 1;
+        int radialValuePerHeightCount = heightValueCount * radialValueCount;
+        int angularValueCount = constructionData->angularCells + 1;
+        std::string heightAndRadialValuesText = "";
+        for (int hi = 0; hi < heightValueCount; hi++)
+        {
+            heightAndRadialValuesText += "H: " + std::to_string(heightValues[hi]) + " -> R:";
+            for (int ri = 0; ri < radialValueCount; ri++)
+            {
+                heightAndRadialValuesText += std::to_string(radialValuesPerHeightValue[hi * radialValueCount + ri]) + " ,";
+            }
+            heightAndRadialValuesText += "\n";
+        }
+        std::string angularValuesText = "A: ";
+        for (int ai = 0; ai < angularValueCount; ai++)
+        {
+            angularValuesText += std::to_string(angularValues[ai]) + " ,";
+        }
+        angularValuesText += "\n";
+        int fieldPointCount = heightValueCount * radialValueCount * angularValueCount;
+
+        logMessage += std::string(
+            "\n\nField Log:\n"
+            "heightValueCount = " + std::to_string(heightValueCount) + "\n"
+            "radialValueCount = " + std::to_string(radialValueCount) + "\n"
+            "angularValueCount = " + std::to_string(angularValueCount) + "\n"
+            + heightAndRadialValuesText.c_str()
+            + angularValuesText.c_str() +
+            "fieldPointCount = " + std::to_string(fieldPointCount) + "\n"
+        );
+
+        if (addTo != nullptr)
+        {
+            *addTo += logMessage;
+        }
+        else
+        {
+            printf(logMessage.c_str());
         }
     }
 };
@@ -359,13 +559,27 @@ Vec3 CurlNoise(float x, float y, float z, int id)
 
 Vec3 SampleField(Vec3 dp, int id)
 {
+    printf("Sampling Field for cardinal position %f, %f, %f...\n", dp.x, dp.y, dp.z);
     //Find cell in which drone is in
     FieldCell fc = field.FindCellFromVec3(dp);
+    std::string cellLog = "Currently sampling cell:";
+    if(dp.y > fc.Top()) cellLog += "\n---------------------> DP:" + dp.ToString() + "\n";
+    fc.PrintLog(1, 1, &cellLog);
+    if (dp.y < fc.Top() && dp.y > fc.Bottom())cellLog += "---------------------> DP:" + dp.ToString() + "\n";
+    fc.PrintLog(-1, 1, &cellLog);
+    if (dp.y < fc.Bottom()) cellLog += "---------------------> DP:" + dp.ToString() + "\n";
+    printf(cellLog.c_str());
 
     //TODO: Find a better way to fast normalize this
-    float tx = (dp.x - fc.p000.position.x) / fc.p111.position.x;
-    float ty = (dp.y - fc.p000.position.y) / fc.p111.position.y;
-    float tz = (dp.z - fc.p000.position.z) / fc.p111.position.z;
+    //Must take care with division by zero in collapsed cells, zero value assumed
+    //Must be positive
+    float tx = 0.0f;
+    if (fc.p111.position.x - fc.p000.position.x != 0.0f) { tx = std::clamp(std::abs((dp.x - fc.p000.position.x) / (fc.p111.position.x - fc.p000.position.x)),0.0f, 1.0f); }
+    float ty = 0.0f;
+    if (fc.p111.position.y - fc.p000.position.y != 0.0f) { ty = std::clamp(std::abs((dp.y - fc.p000.position.y) / (fc.p111.position.y - fc.p000.position.y)), 0.0f, 1.0f); }
+    float tz = 0.0f;
+    if (fc.p111.position.z - fc.p000.position.z != 0.0f) { tz = std::clamp(std::abs((dp.z - fc.p000.position.z) / (fc.p111.position.z - fc.p000.position.z)), 0.0f, 1.0f); }
+    printf("\n\nTx:%f\nTy:%f\nTz:%f\n", tx, ty, tz);
 
     //Lerp directions
     auto lerp = [](Vec3 a, Vec3 b, float t)
@@ -381,11 +595,14 @@ Vec3 SampleField(Vec3 dp, int id)
     Vec3 c10 = lerp(fc.p010.direction, fc.p110.direction, tx);
     Vec3 c01 = lerp(fc.p001.direction, fc.p101.direction, tx);
     Vec3 c11 = lerp(fc.p011.direction, fc.p111.direction, tx);
+    printf("\n\nc00:%s\nc10:%s\nc01:%s\nc11:%s\n", c00.ToString().c_str(), c10.ToString().c_str(), c01.ToString().c_str(), c11.ToString().c_str());
 
     Vec3 c0 = lerp(c00, c10, ty);
     Vec3 c1 = lerp(c01, c11, ty);
+    printf("\n\nc0:%s\nc1:%s", c0.ToString().c_str(), c1.ToString().c_str());
 
     Vec3 base = lerp(c0, c1, tz);
+    printf("\n\nbase:%s", base.ToString().c_str());
 
     //Curl
     Vec3 curl = CurlNoise(dp.x * 0.01f, dp.y * 0.01f, dp.z * 0.01f, id);
@@ -418,10 +635,12 @@ Vec3 SampleField(Vec3 dp, int id)
 //Drone Functions
 void UpdateDrone(Drone& d, float dt, int id)
 {
+    printf("Updating drone %d...\n", id);
     Vec3 flow = SampleField(
         d.position,
         id
     );
+    printf("\n\nflow:%s", flow.ToString().c_str());
 
     float strength = fieldInfluenceStength;
 
@@ -444,10 +663,12 @@ void UpdateDrone(Drone& d, float dt, int id)
         d.velocity.y *= speedLimit / speed;
         d.velocity.z *= speedLimit / speed;
     }
+    printf("\n\nd.velocity:%s", d.velocity.ToString().c_str());
 
     d.position.x += d.velocity.x * dt;
     d.position.y += d.velocity.y * dt;
     d.position.z += d.velocity.z * dt;
+    printf("\n\nd.position:%s", d.position.ToString().c_str());
 }
 
 //Field external functions
@@ -637,6 +858,9 @@ extern "C"
                     }
                     field.fieldPoints[index].direction = dir;
                 }
+
+        //Log field status
+        field.PrintLog();
     }
 
     /*TODO: REMOVE*/
@@ -712,10 +936,12 @@ extern "C"
 
     __declspec(dllexport) void UpdateSwarm(float dt)
     {
+        printf("\n\nSwarmSim - SwarmUpdate START\n");
         for (int i = 0; i < droneCount; i++)
         {
             UpdateDrone(drones[i], dt, i);
         }
+        printf("\nSwarmSim - SwarmUpdate END\n");
     }
 
     __declspec(dllexport) Drone* GetDroneArray()
