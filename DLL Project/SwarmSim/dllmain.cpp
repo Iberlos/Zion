@@ -16,7 +16,6 @@ struct Vec3
     float x;
     float y;
     float z;
-    //RadialVec3 ToRadialVec3() { return RadialVec3(y, sqrt(x*x+z*z), atan2(x, z)); }
 };
 
 struct RadialVec3
@@ -239,6 +238,8 @@ struct RadialField
         int aiNext = angularPointCount;
         BinaryIndexSearch(rp.a, angularValues, angularPointCount, aiPrevious, aiNext);
         //Create FieldCell
+        int maxIndex = hiNext * radialPointCount * angularPointCount + riNext * angularPointCount + aiNext;
+        assert(maxIndex < heightPointCount * radialPointCount * angularPointCount && "maxIndex out of bounds!");
         return FieldCell(
             /*p000*/fieldPoints[hiPrevious * radialPointCount * angularPointCount + riPrevious * angularPointCount + aiPrevious],
             /*p100*/fieldPoints[hiNext * radialPointCount * angularPointCount + riPrevious * angularPointCount + aiPrevious],
@@ -255,7 +256,7 @@ struct RadialField
     void BinaryIndexSearch(float searchValue, float* values, int valuesSize, int& iPreviousOut, int& iNextOut,  int baseIndex = 0) {
         int searchIndex = (int)floor(valuesSize / 2.0f);
         while (iPreviousOut < iNextOut - 1) {
-            assert(searchIndex < valuesSize && searchIndex > 0 && "searchIndex out of bounds!");
+            assert(searchIndex < valuesSize && searchIndex >= 0 && "searchIndex out of bounds!");
             float currentValue = values[searchIndex];
             if (currentValue > searchValue) {
                 iPreviousOut = searchIndex;
@@ -358,49 +359,15 @@ Vec3 CurlNoise(float x, float y, float z, int id)
 
 Vec3 SampleField(Vec3 dp, int id)
 {
+    //Find cell in which drone is in
+    FieldCell fc = field.FindCellFromVec3(dp);
 
-    dp.x += (flowField.sizeX - 1) * flowField.cellSize / 2.0f;
-    dp.z += (flowField.sizeZ - 1) * flowField.cellSize / 2.0f;
+    //TODO: Find a better way to fast normalize this
+    float tx = (dp.x - fc.p000.position.x) / fc.p111.position.x;
+    float ty = (dp.y - fc.p000.position.y) / fc.p111.position.y;
+    float tz = (dp.z - fc.p000.position.z) / fc.p111.position.z;
 
-    float gx = dp.x / flowField.cellSize;
-    float gy = dp.y / flowField.cellSize;
-    float gz = dp.z / flowField.cellSize;
-
-    int x0 = (int)floor(gx);
-    int y0 = (int)floor(gy);
-    int z0 = (int)floor(gz);
-
-    int x1 = x0 + 1;
-    int y1 = y0 + 1;
-    int z1 = z0 + 1;
-
-    x0 = max(0, min(flowField.sizeX - 1, x0));
-    y0 = max(0, min(flowField.sizeY - 1, y0));
-    z0 = max(0, min(flowField.sizeZ - 1, z0));
-
-    x1 = max(0, min(flowField.sizeX - 1, x1));
-    y1 = max(0, min(flowField.sizeY - 1, y1));
-    z1 = max(0, min(flowField.sizeZ - 1, z1));
-
-    float tx = gx - floor(gx);
-    float ty = gy - floor(gy);
-    float tz = gz - floor(gz);
-
-    auto index = [&](int x, int y, int z)
-        {
-            return x + y * flowField.sizeX + z * flowField.sizeX * flowField.sizeY;
-        };
-
-    Vec3 c000 = flowField.vectors[index(x0, y0, z0)];
-    Vec3 c100 = flowField.vectors[index(x1, y0, z0)];
-    Vec3 c010 = flowField.vectors[index(x0, y1, z0)];
-    Vec3 c110 = flowField.vectors[index(x1, y1, z0)];
-
-    Vec3 c001 = flowField.vectors[index(x0, y0, z1)];
-    Vec3 c101 = flowField.vectors[index(x1, y0, z1)];
-    Vec3 c011 = flowField.vectors[index(x0, y1, z1)];
-    Vec3 c111 = flowField.vectors[index(x1, y1, z1)];
-
+    //Lerp directions
     auto lerp = [](Vec3 a, Vec3 b, float t)
         {
             return Vec3{
@@ -410,16 +377,17 @@ Vec3 SampleField(Vec3 dp, int id)
             };
         };
 
-    Vec3 c00 = lerp(c000, c100, tx);
-    Vec3 c10 = lerp(c010, c110, tx);
-    Vec3 c01 = lerp(c001, c101, tx);
-    Vec3 c11 = lerp(c011, c111, tx);
+    Vec3 c00 = lerp(fc.p000.direction, fc.p100.direction, tx);
+    Vec3 c10 = lerp(fc.p010.direction, fc.p110.direction, tx);
+    Vec3 c01 = lerp(fc.p001.direction, fc.p101.direction, tx);
+    Vec3 c11 = lerp(fc.p011.direction, fc.p111.direction, tx);
 
     Vec3 c0 = lerp(c00, c10, ty);
     Vec3 c1 = lerp(c01, c11, ty);
 
     Vec3 base = lerp(c0, c1, tz);
 
+    //Curl
     Vec3 curl = CurlNoise(dp.x * 0.01f, dp.y * 0.01f, dp.z * 0.01f, id);
 
     float curlLen = sqrt(curl.x * curl.x + curl.y * curl.y + curl.z * curl.z);

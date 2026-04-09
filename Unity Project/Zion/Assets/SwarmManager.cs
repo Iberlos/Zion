@@ -550,7 +550,7 @@ public class SwarmManager : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             GameObject obj =
-                Instantiate(dronePrefab, Vector3.zero, Quaternion.identity);
+                Instantiate(dronePrefab, new Vector3(10.0f, -100.0f, 10.0f), Quaternion.identity);
 
             droneObjects[i] = obj;
             //droneTransforms[i] = obj.transform;
