@@ -8,6 +8,17 @@
 
 const double PI = 3.14159265358979323846;
 
+// Global flag to toggle output
+bool verbose = false;
+
+template<typename... Args>
+void log(const char* format, Args... args) {
+    if (verbose) {
+        printf(format, args...);
+        printf("\n");
+    }
+}
+
 //General Structures
 struct Vec3
 {
@@ -19,6 +30,43 @@ struct Vec3
     float z;
 
     std::string ToString() { return std::string(std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z)); }
+
+    bool operator==(const Vec3& other) const {
+        return x == other.x && y == other.y && z == other.z;
+    }
+    bool operator!=(const Vec3& other) const {
+        return !((*this)==other);
+    }
+    Vec3 operator+(const Vec3& other) const {
+        return Vec3( x + other.x, y + other.y, z + other.z);
+    }
+    Vec3 operator-(const Vec3& other) const {
+        return Vec3(x - other.x, y - other.y, z - other.z);
+    }
+    float operator*(const Vec3& other) const {
+        return sqrt(x * other.x + y * other.y + z * other.z);
+    }
+    Vec3 operator*(const float& other) const {
+        return Vec3(x * other, y * other, z * other);
+    }
+    Vec3 operator/(const float& other) const {
+        return Vec3(x / other, y / other, z / other);
+    }
+    Vec3 operator*(const int& other) const {
+        return *this * ((float)other);
+    }
+    Vec3 operator/(const int& other) const {
+        return *this / ((float)other);
+    }
+    Vec3 Normalized() {
+        return Vec3(*this)/ mag();
+    }
+    float sqrMag() {
+        return x * x + y * y + z * z;
+    }
+    float mag() {
+        return sqrt(sqrMag());
+    }
 };
 
 struct RadialVec3
@@ -32,6 +80,43 @@ struct RadialVec3
     float a;
     Vec3 ToVec3() { return Vec3(sin(a)*r, h, cos(a)*r); }
     std::string ToString() { return std::string(std::to_string(h) + "," + std::to_string(r) + "," + std::to_string(a)); }
+
+    bool operator==(const RadialVec3& other) const {
+        return h == other.h && r == other.r && a == other.a;
+    }
+    bool operator!=(const RadialVec3& other) const {
+        return !((*this) == other);
+    }
+    RadialVec3 operator+(const RadialVec3& other) const {
+        return RadialVec3(h + other.h, r + other.r, a + other.a);
+    }
+    RadialVec3 operator-(const RadialVec3& other) const {
+        return RadialVec3(h - other.h, r - other.r, a - other.a);
+    }
+    float operator*(const RadialVec3& other) const {
+        return sqrt(h * other.h + r * other.r + a * other.a);
+    }
+    RadialVec3 operator*(const float& other) const {
+        return RadialVec3(h * other, r * other, a * other);
+    }
+    RadialVec3 operator/(const float& other) const {
+        return RadialVec3(h / other, r / other, a / other);
+    }
+    RadialVec3 operator*(const int& other) const {
+        return *this * ((float)other);
+    }
+    RadialVec3 operator/(const int& other) const {
+        return *this / ((float)other);
+    }
+    RadialVec3 Normalized() {
+        return RadialVec3(*this) / mag();
+    }
+    float sqrMag() {
+        return h * h + r * r + a * a;
+    }
+    float mag() {
+        return sqrt(sqrMag());
+    }
 
     //Add an angle to the original vector
     RadialVec3& AlignA() {
@@ -136,6 +221,7 @@ struct FieldConstructionData
     }
 
     void PrintLog(std::string* addTo = nullptr) {
+        if (!verbose) return;
         std::string logMessage = std::string(
             addTo == nullptr ? "SwarmSim - ConstructionData Log:\n\n" : "\n\nConstructionData Log:\n"
             "radialCells = " + std::to_string(radialCells) + "\n"
@@ -162,7 +248,7 @@ struct FieldConstructionData
         }
         else
         {
-            printf(logMessage.c_str());
+            log(logMessage.c_str());
         }
     }
 };
@@ -260,6 +346,7 @@ struct FieldCell
     float Bottom() { return p000.position.y; }
 
     void PrintLog(int printTopOrBottom = 0, int printPosOrDir = 0, std::string* addTo = nullptr) {
+        if (!verbose) return;
         std::string logMessage = "";
         //Print top
         if(printTopOrBottom >= 0)logMessage += std::string(
@@ -278,7 +365,7 @@ struct FieldCell
         }
         else
         {
-            printf(logMessage.c_str());
+            log(logMessage.c_str());
         }
     }
 };
@@ -295,7 +382,7 @@ struct RadialField
     {
         //Turn cardinal position into 2.5d position
         RadialVec3 rp(position);
-        printf("Cardinal postion converted to radial position %f, %f, %f.\n", rp.h, rp.r, rp.a);
+        log("Cardinal postion converted to radial position %f, %f, %f.\n", rp.h, rp.r, rp.a);
         //Find coordinates for each radial axis for position
         int heightPointCount = constructionData->heightCells + 1;
         int radialPointCount = constructionData->radialCells + 1;
@@ -304,17 +391,17 @@ struct RadialField
 
         int hiPrevious = 0;
         int hiNext = heightPointCount-1;
-        printf("\nBinary Height Search starting with P=%d,N=%d,S=%f", hiPrevious, hiNext, rp.h);
-        BinaryIndexSearch(rp.h, heightValues, heightPointCount, hiPrevious, hiNext);
+        log("\nBinary Height Search starting with P=%d,N=%d,S=%f", hiPrevious, hiNext, rp.h);
+        BinaryIndexSearch(rp.h, heightValues, heightPointCount, hiPrevious, hiNext, false);
         int riPrevious = 0;
         int riNext = radialPointCount-1;
-        printf("\nBinary Radial Search starting with P=%d,N=%d,S=%f,Bi=%d", riPrevious, riNext, rp.r, hiPrevious);
-        BinaryIndexSearch(rp.r, radialValuesPerHeightValue, radialPointCount * heightPointCount, riPrevious, riNext, hiPrevious); //TODO: use closest hi value not previous
+        log("\nBinary Radial Search starting with P=%d,N=%d,S=%f,Bi=%d", riPrevious, riNext, rp.r, hiPrevious);
+        BinaryIndexSearch(rp.r, radialValuesPerHeightValue, radialPointCount * heightPointCount, riPrevious, riNext, true, hiPrevious); //TODO: use closest hi value not previous
         int aiPrevious = 0;
         int aiNext = angularPointCount-1;
-        printf("\nBinary Angular Search starting with P=%d,N=%d,S=%f", aiPrevious, aiNext, rp.a);
+        log("\nBinary Angular Search starting with P=%d,N=%d,S=%f", aiPrevious, aiNext, rp.a);
         BinaryIndexSearch(rp.a, angularValues, angularPointCount, aiPrevious, aiNext);
-        printf("\nBinary search returned indexes:\nH: %d, %d\nR: %d, %d\nA: %d, %d\n", hiPrevious, hiNext, riPrevious, riNext, aiPrevious, aiNext);
+        log("\nBinary search returned indexes:\nH: %d, %d\nR: %d, %d\nA: %d, %d\n", hiPrevious, hiNext, riPrevious, riNext, aiPrevious, aiNext);
         //Create FieldCell
         int maxIndex = hiNext * radialPointCount * angularPointCount + riNext * angularPointCount + aiNext;
         assert(maxIndex < heightPointCount * radialPointCount * angularPointCount && "maxIndex out of bounds!");
@@ -331,57 +418,57 @@ struct RadialField
     }
 
     //Helper function to find the indexes for each axis right below and right above the value
-    void BinaryIndexSearch(float searchValue, float* values, int valuesSize, int& iPreviousOut, int& iNextOut,  int baseIndex = 0) {
+    void BinaryIndexSearch(float searchValue, float* values, int valuesSize, int& iPreviousOut, int& iNextOut, bool ascendingArray = true,  int baseIndex = 0) {
         //If there is a base index align with it
         if (baseIndex != 0)
         {
             iPreviousOut += baseIndex;
             iNextOut += baseIndex;
-            printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+            log("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
         }
         //Check if the array is in descending order or ascending order
-        bool AscendingLogic = values[0] < values[1];
+        bool AscendingLogic = ascendingArray;
         //If the search value is smaller than the minimum value force iNextOut and exit
         if (AscendingLogic ? searchValue < values[iPreviousOut] : searchValue > values[iPreviousOut])
         {
-            iNextOut = iPreviousOut + 1;
-            printf("\nS=%f %s V[P]=%f ->  P=%d,N=%d", searchValue, AscendingLogic?"<":">", values[iPreviousOut], iPreviousOut, iNextOut);
+            iNextOut = iPreviousOut;
+            log("\nS=%f %s V[P]=%f ->  P=%d,N=%d", searchValue, AscendingLogic?"<":">", values[iPreviousOut], iPreviousOut, iNextOut);
             //If the logic was flipped the indexes need to be flipped, since values[iNextOut] > values[iPreviousOut] has to be true for cell creation
             if (!AscendingLogic) {
                 int n = iNextOut;
                 int p = iPreviousOut;
                 iPreviousOut = n;
                 iNextOut = p;
-                printf("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
+                log("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
             }
             //If there is a base index de-align with it before returning
             if (baseIndex != 0)
             {
                 iPreviousOut -= baseIndex;
                 iNextOut -= baseIndex;
-                printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+                log("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
             }
             return;
         }
         //If the search value is bigger than the maximum value force iPreviousOut and exit
         if (AscendingLogic ? searchValue > values[iNextOut] : searchValue < values[iNextOut])
         {
-            iPreviousOut = iNextOut - 1;
-            printf("\nS=%f %s V[N]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? ">" : "<", values[iNextOut], iPreviousOut, iNextOut);
+            iPreviousOut = iNextOut;
+            log("\nS=%f %s V[N]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? ">" : "<", values[iNextOut], iPreviousOut, iNextOut);
             //If the logic was flipped the indexes need to be flipped, since values[iNextOut] > values[iPreviousOut] has to be true for cell creation
             if (!AscendingLogic) {
                 int n = iNextOut;
                 int p = iPreviousOut;
                 iPreviousOut = n;
                 iNextOut = p;
-                printf("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
+                log("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
             }
             //If there is a base index de-align with it before returning
             if (baseIndex != 0)
             {
                 iPreviousOut -= baseIndex;
                 iNextOut -= baseIndex;
-                printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+                log("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
             }
             return;
         }
@@ -390,23 +477,23 @@ struct RadialField
         int searchIndex;
         while (iPreviousOut < iNextOut - 1) {
             step++;
-            printf("\nStep %d", step);
+            log("\nStep %d", step);
             searchIndex = iPreviousOut + (int)floor((iNextOut - iPreviousOut) / 2.0f);
             assert(searchIndex < valuesSize && searchIndex >= 0 && "searchIndex out of bounds!");
             float currentValue = values[searchIndex];
             if (AscendingLogic ? searchValue < currentValue : searchValue > currentValue) {
                 iNextOut = searchIndex;
-                printf("\nS=%f %s V[S=%d]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? "<" : ">", searchIndex, values[searchIndex], iPreviousOut, iNextOut);
+                log("\nS=%f %s V[S=%d]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? "<" : ">", searchIndex, values[searchIndex], iPreviousOut, iNextOut);
             }
             else if(AscendingLogic ? searchValue > currentValue : searchValue < currentValue){
                 iPreviousOut = searchIndex;
-                printf("\nS=%f %s V[S=%d]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? ">" : "<", searchIndex, values[searchIndex], iPreviousOut, iNextOut);
+                log("\nS=%f %s V[S=%d]=%f ->  P=%d,N=%d", searchValue, AscendingLogic ? ">" : "<", searchIndex, values[searchIndex], iPreviousOut, iNextOut);
             }
             else {
                 //Handle sameness although it should not be possible
                 iPreviousOut = searchIndex;
                 iNextOut = searchIndex + 1;
-                printf("\nS=%f = V[S=%d]=%f ->  P=%d,N=%d", searchValue, searchIndex, values[searchIndex], iPreviousOut, iNextOut);
+                log("\nS=%f = V[S=%d]=%f ->  P=%d,N=%d", searchValue, searchIndex, values[searchIndex], iPreviousOut, iNextOut);
             }
             searchIndex = iPreviousOut + (int)floor((iNextOut-iPreviousOut) / 2.0f);
         }
@@ -416,18 +503,19 @@ struct RadialField
             int p = iPreviousOut;
             iPreviousOut = n;
             iNextOut = p;
-            printf("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
+            log("\nReturning with logic flipped -> P=%d,N=%d", iPreviousOut, iNextOut);
         }
         //If there is a base index de-align with it before returning
         if (baseIndex != 0)
         {
             iPreviousOut -= baseIndex;
             iNextOut -= baseIndex;
-            printf("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
+            log("\nBase index present -> P=%d,N=%d", iPreviousOut, iNextOut);
         }
     }
 
     void PrintLog(std::string* addTo = nullptr) {
+        if (!verbose) return;
         std::string logMessage = std::string(addTo == nullptr ? "SwarmSim Log:\n\n" : "");
         constructionData->PrintLog(&logMessage);
 
@@ -469,7 +557,7 @@ struct RadialField
         }
         else
         {
-            printf(logMessage.c_str());
+            log(logMessage.c_str());
         }
     }
 };
@@ -559,27 +647,25 @@ Vec3 CurlNoise(float x, float y, float z, int id)
 
 Vec3 SampleField(Vec3 dp, int id)
 {
-    printf("Sampling Field for cardinal position %f, %f, %f...\n", dp.x, dp.y, dp.z);
+    log("Sampling Field for cardinal position %f, %f, %f...\n", dp.x, dp.y, dp.z);
     //Find cell in which drone is in
     FieldCell fc = field.FindCellFromVec3(dp);
-    std::string cellLog = "Currently sampling cell:";
-    if(dp.y > fc.Top()) cellLog += "\n---------------------> DP:" + dp.ToString() + "\n";
-    fc.PrintLog(1, 1, &cellLog);
-    if (dp.y < fc.Top() && dp.y > fc.Bottom())cellLog += "---------------------> DP:" + dp.ToString() + "\n";
-    fc.PrintLog(-1, 1, &cellLog);
-    if (dp.y < fc.Bottom()) cellLog += "---------------------> DP:" + dp.ToString() + "\n";
-    printf(cellLog.c_str());
+    if (verbose) {
+        std::string cellLog = "Currently sampling cell:";
+        if (dp.y > fc.Top()) cellLog += "\n---------------------> DP:" + dp.ToString() + "\n";
+        fc.PrintLog(1, 1, &cellLog);
+        if (dp.y < fc.Top() && dp.y > fc.Bottom())cellLog += "---------------------> DP:" + dp.ToString() + "\n";
+        fc.PrintLog(-1, 1, &cellLog);
+        if (dp.y < fc.Bottom()) cellLog += "---------------------> DP:" + dp.ToString() + "\n";
+        log(cellLog.c_str());
+    }
 
-    //TODO: Find a better way to fast normalize this
     //Must take care with division by zero in collapsed cells, zero value assumed
-    //Must be positive
-    float tx = 0.0f;
-    if (fc.p111.position.x - fc.p000.position.x != 0.0f) { tx = std::clamp(std::abs((dp.x - fc.p000.position.x) / (fc.p111.position.x - fc.p000.position.x)),0.0f, 1.0f); }
-    float ty = 0.0f;
-    if (fc.p111.position.y - fc.p000.position.y != 0.0f) { ty = std::clamp(std::abs((dp.y - fc.p000.position.y) / (fc.p111.position.y - fc.p000.position.y)), 0.0f, 1.0f); }
-    float tz = 0.0f;
-    if (fc.p111.position.z - fc.p000.position.z != 0.0f) { tz = std::clamp(std::abs((dp.z - fc.p000.position.z) / (fc.p111.position.z - fc.p000.position.z)), 0.0f, 1.0f); }
-    printf("\n\nTx:%f\nTy:%f\nTz:%f\n", tx, ty, tz);
+    float t = 0.0f;
+    if (fc.p111.position != fc.p000.position) { 
+        t = (dp-fc.p000.position).sqrMag()/(fc.p111.position-fc.p000.position).sqrMag(); 
+    }
+    log("\n\nT:%f", t);
 
     //Lerp directions
     auto lerp = [](Vec3 a, Vec3 b, float t)
@@ -591,18 +677,18 @@ Vec3 SampleField(Vec3 dp, int id)
             };
         };
 
-    Vec3 c00 = lerp(fc.p000.direction, fc.p100.direction, tx);
-    Vec3 c10 = lerp(fc.p010.direction, fc.p110.direction, tx);
-    Vec3 c01 = lerp(fc.p001.direction, fc.p101.direction, tx);
-    Vec3 c11 = lerp(fc.p011.direction, fc.p111.direction, tx);
-    printf("\n\nc00:%s\nc10:%s\nc01:%s\nc11:%s\n", c00.ToString().c_str(), c10.ToString().c_str(), c01.ToString().c_str(), c11.ToString().c_str());
+    Vec3 c00 = lerp(fc.p000.direction, fc.p100.direction, t);
+    Vec3 c10 = lerp(fc.p010.direction, fc.p110.direction, t);
+    Vec3 c01 = lerp(fc.p001.direction, fc.p101.direction, t);
+    Vec3 c11 = lerp(fc.p011.direction, fc.p111.direction, t);
+    log("\n\nc00:%s\nc10:%s\nc01:%s\nc11:%s\n", c00.ToString().c_str(), c10.ToString().c_str(), c01.ToString().c_str(), c11.ToString().c_str());
 
-    Vec3 c0 = lerp(c00, c10, ty);
-    Vec3 c1 = lerp(c01, c11, ty);
-    printf("\n\nc0:%s\nc1:%s", c0.ToString().c_str(), c1.ToString().c_str());
+    Vec3 c0 = lerp(c00, c10, t);
+    Vec3 c1 = lerp(c01, c11, t);
+    log("\n\nc0:%s\nc1:%s", c0.ToString().c_str(), c1.ToString().c_str());
 
-    Vec3 base = lerp(c0, c1, tz);
-    printf("\n\nbase:%s", base.ToString().c_str());
+    Vec3 base = lerp(c0, c1, t);
+    log("\n\nbase:%s", base.ToString().c_str());
 
     //Curl
     Vec3 curl = CurlNoise(dp.x * 0.01f, dp.y * 0.01f, dp.z * 0.01f, id);
@@ -635,12 +721,12 @@ Vec3 SampleField(Vec3 dp, int id)
 //Drone Functions
 void UpdateDrone(Drone& d, float dt, int id)
 {
-    printf("Updating drone %d...\n", id);
+    log("Updating drone %d...\n", id);
     Vec3 flow = SampleField(
         d.position,
         id
     );
-    printf("\n\nflow:%s", flow.ToString().c_str());
+    log("\n\nflow:%s", flow.ToString().c_str());
 
     float strength = fieldInfluenceStength;
 
@@ -663,12 +749,12 @@ void UpdateDrone(Drone& d, float dt, int id)
         d.velocity.y *= speedLimit / speed;
         d.velocity.z *= speedLimit / speed;
     }
-    printf("\n\nd.velocity:%s", d.velocity.ToString().c_str());
+    log("\n\nd.velocity:%s", d.velocity.ToString().c_str());
 
     d.position.x += d.velocity.x * dt;
     d.position.y += d.velocity.y * dt;
     d.position.z += d.velocity.z * dt;
-    printf("\n\nd.position:%s", d.position.ToString().c_str());
+    log("\n\nd.position:%s", d.position.ToString().c_str());
 }
 
 //Field external functions
@@ -936,12 +1022,12 @@ extern "C"
 
     __declspec(dllexport) void UpdateSwarm(float dt)
     {
-        printf("\n\nSwarmSim - SwarmUpdate START\n");
+        log("\n\nSwarmSim - SwarmUpdate START\n");
         for (int i = 0; i < droneCount; i++)
         {
             UpdateDrone(drones[i], dt, i);
         }
-        printf("\nSwarmSim - SwarmUpdate END\n");
+        log("\nSwarmSim - SwarmUpdate END\n");
     }
 
     __declspec(dllexport) Drone* GetDroneArray()
