@@ -19,6 +19,14 @@ void log(const char* format, Args... args) {
     }
 }
 
+float atan2_approx(float y, float x) {
+    float abs_y = std::fabs(y) + 1e-10f; // Prevent 0/0
+    float r = (x - std::copysign(abs_y, x)) / (abs_y + std::fabs(x));
+    float angle = PI / 2.0f - std::copysign(PI / 4.0f, x);
+    angle += (0.1963f * r * r - 0.9817f) * r;
+    return std::copysign(angle, y);
+}
+
 //General Structures
 struct Vec3
 {
@@ -74,7 +82,7 @@ struct RadialVec3
     RadialVec3() :h(0.0f), r(0.0f), a(0.0f) { AlignA(); }
     RadialVec3(float h, float r, float a) : h(h), r(r), a(a) { AlignA(); }
     RadialVec3(const RadialVec3& other) : h(other.h), r(other.r), a(other.a) { AlignA(); }
-    RadialVec3(const Vec3& vec3) : h(vec3.y), r(sqrt(vec3.x* vec3.x + vec3.z * vec3.z)), a(atan2(vec3.x, vec3.z)) { AlignA(); }
+    RadialVec3(const Vec3& vec3) : h(vec3.y), r(sqrt(vec3.x* vec3.x + vec3.z * vec3.z)), a(atan2_approx(vec3.x, vec3.z)) { AlignA(); }
     float h;
     float r;
     float a;
